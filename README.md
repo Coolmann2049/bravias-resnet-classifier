@@ -87,6 +87,12 @@ The photon-count scale is drawn uniformly from `[500, 5000]` per sample, simulat
 
 ## Architecture: ResNet-1D
 
+### Why a 1D CNN for PXRD?
+
+A PXRD pattern is an inherently **1D signal** — a function of the scattering angle (or Q). Treating it as a 1D sequence and applying a 1D CNN is a natural fit: local convolution kernels learn to detect peaks and their neighbourhoods, while residual connections allow gradients to flow through the depth required to capture multi-peak relationships.
+
+This design is independently validated by **AlphaDiffract** [7] (Andrejevic et al., 2026), a concurrent framework for automated PXRD analysis that also applies a 1D deep convolutional network — a 1D ConvNeXt — to predict crystal systems, space groups, and lattice parameters directly from 1D diffraction patterns, trained on 31 million simulated patterns. The convergence of both approaches on the *1D-CNN-over-Q-space* paradigm provides strong evidence that this is the right inductive bias for this problem.
+
 ```
 Input  (N, 1024, 1)
    │
@@ -114,7 +120,7 @@ Dense(14,  softmax)
 
 ### ResBlock Pre-Activation Design
 
-Each residual block follows the **pre-activation** scheme of He et al. (2016):
+Each residual block follows the **pre-activation** scheme of He et al. (2016) [1]:
 
 ```
 BN → ReLU → Conv1D → [SpatialDropout] → BN → ReLU → Conv1D
@@ -274,21 +280,6 @@ model.load_weights("outputs/checkpoints/deepbravais_best_<timestamp>.weights.h5"
 
 ---
 
-## Expected Performance
-
-On 50,000 samples with default hyperparameters and a GPU:
-
-| Metric             | Value (approx.) |
-|--------------------|-----------------|
-| Test Accuracy      | ~92–96%         |
-| Training time (GPU)| ~15–25 min      |
-| Training time (CPU)| ~2–4 hr         |
-| Model parameters   | ~18 M           |
-
-The cubic lattices (cP/cI/cF) and orthorhombic lattices (oP/oI/oF/oC) are the hardest to distinguish — the confusion matrix typically shows the most off-diagonal mass there.
-
----
-
 ## Hyperparameter Reference
 
 | Argument     | Default | Description                            |
@@ -337,6 +328,11 @@ The cubic lattices (cP/cI/cF) and orthorhombic lattices (oP/oI/oF/oC) are the ha
 6. Larsen, A.H. et al. (2017). *The Atomic Simulation Environment — A Python library for working with atoms.*
    J. Phys.: Condens. Matter, 29, 273002.
    https://doi.org/10.1088/1361-648X/aa680e
+
+7. Andrejevic, N., Du, M., Sharma, H., Horwath, J.P., Luo, A., Yin, X., Prince, M., Toby, B.H., & Cherukara, M.J. (2026).
+   *AlphaDiffract: Automated Crystallographic Analysis of Powder X-ray Diffraction Data.*
+   arXiv:2603.23367.
+   https://arxiv.org/abs/2603.23367
 
 ---
 
