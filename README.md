@@ -12,7 +12,39 @@
 
 **DeepBravais** classifies synthetic powder X-ray diffraction (PXRD) patterns into one of the **14 Bravais lattice types** using a custom **1D Residual Network (ResNet-1D)** implemented in TensorFlow/Keras.
 
-Rather than relying on noisy experimental databases, the project employs a **Physics-Informed Augmentation** strategy: patterns are synthesised from first principles using `pymatgen`, broadened analytically (Scherrer/Pseudo-Voigt), and corrupted with Poisson photon-counting noise. This gives full control over data quality and distribution.
+Rather than relying on noisy experimental databases, the project employs a **Physics-Informed Augmentation** strategy: patterns are synthesised from first principles, broadened analytically (Scherrer/Pseudo-Voigt), and corrupted with Poisson photon-counting noise. This gives full control over data quality and distribution. 
+
+### Recent Updates & Optimizations
+- **Modular Architecture**: The codebase has been refactored into a clean `src/` package (separating config, physics, models, trainer, dataset, and visualization logic). 
+- **Numpy-Only Physics Engine**: A highly optimized vectorised physics engine (via the `--numpy` flag) completely bypasses `pymatgen` for peak calculation, resulting in a **20-50x speedup** for generating hundreds of thousands of samples natively in numpy.
+
+---
+
+## Performance & Results
+
+The final `ConvNeXt1D_Small` architecture (~1.6M parameters) was trained on **500,000 synthetic samples** evenly distributed across all 14 Bravais lattices.
+
+**Test Set Evaluation (75,000 held-out samples):**
+*   **Test Loss**: 0.1228
+*   **Test Accuracy**: **96.78%**
+*   **Macro Average F1-Score**: 0.9676
+
+The model successfully distinguishes critical systematic absences for challenging centering rules, achieving >90% precision and recall across all classes, and near-perfect scores (0.99+) for Cubic (cP, cI, cF) and Trigonal (hR) systems.
+
+---
+
+## Pre-trained Weights
+
+You can immediately start inference or fine-tuning using our best checkpoint weights (from Epoch 20, achieving 96.78% test accuracy):
+
+**📥 [Download `deepbravais_best.weights.h5` from Google Drive](https://drive.google.com/file/d/11ap4gaBPyd5HjaN1aH_g-tDWpwdeIc3P/view?usp=sharing)**
+
+To load these weights into the architecture:
+```python
+from src.models import build_resnet1d_small
+model = build_resnet1d_small()
+model.load_weights("deepbravais_best.weights.h5")
+```
 
 ---
 
@@ -142,10 +174,17 @@ bravais-resnet-classifier/
 │   ├── checkpoints/            ← best model weights (saved during training)
 │   ├── plots/                  ← training curves + confusion matrix
 │   └── deepbravais_final.keras ← full saved model for inference
-├── data_generator.py           ← physics-informed PXRD synthesis (pymatgen)
-├── data_loader.py              ← SimXRD-4M database importer (Hugging Face)
-├── models.py                   ← ResNet-1D architecture
-├── train.py                    ← training loop + evaluation
+├── src/
+│   ├── config.py               ← core configurations & lattice sets
+│   ├── dataset.py              ← balanced sampling & I/O logic
+│   ├── models.py               ← ResNet-1D & ConvNeXt1D implementations
+│   ├── physics.py              ← simulation physics (d-spacing / Scherrer)
+│   ├── trainer.py              ← learning rate schedules / callbacks
+│   └── visualization.py        ← headless matplotlib utilities
+├── data_generator.py           ← high-speed data generator CLI (--numpy flag)
+├── data_loader.py              ← SimXRD-4M Hugging Face downloader
+├── train.py                    ← training CLI
+├── models.py                   ← backwards-compatibility shim
 ├── requirements.txt
 └── README.md
 ```
@@ -160,16 +199,16 @@ bravais-resnet-classifier/
 pip install -r requirements.txt
 ```
 
-> **Note:** `pymatgen` pulls in several scientific libraries. On slow connections, this may take a few minutes. On Kaggle/Colab, it is available as a pre-installed package.
+> **Note:** `pymatgen` pulls in several scientific libraries. On slow connections, this may take a few minutes. If you use the fast `--numpy` backend, `pymatgen` is not required.
 
 ### 2a. Generate the dataset (physics simulation — no internet required)
 
 ```bash
-# Default: 50,000 samples (~2–5 min on a modern CPU)
-python data_generator.py
+# Our ultra-fast Numpy-only backend (~20-50x speedup vs pymatgen)
+python data_generator.py --n_samples 50000 --numpy
 
 # Custom settings
-python data_generator.py --n_samples 100000 --output data/processed/large.npz
+python data_generator.py --n_samples 500000 --numpy --output data/processed/large.npz
 ```
 
 This creates `data/processed/dataset.npz` containing:
@@ -179,89 +218,35 @@ This creates `data/processed/dataset.npz` containing:
 
 ---
 
-### 2b. Download the dataset from SimXRD-4M (real database — recommended for Kaggle)
+### 2b. Download the dataset from SimXRD-4M (real database — optional)
 
 As an alternative to on-the-fly simulation, you can pull patterns directly from
 **SimXRD-4M** — a dataset of 4 million PXRD patterns derived from 119,569 real
 crystal structures in the Materials Project, published at ICLR 2025 [5].
 
-`data_loader.py` streams the dataset shard-by-shard from Hugging Face, maps
+`data_loader.py` streams the dataset shard-by-shard from Hugging Face (**AI4Spectro**), maps
 all 230 space groups to the 14 Bravais lattices using the canonical ITA table,
 performs stratified sampling so every class is equally represented, and saves
 the result in the same `.npz` format that `train.py` expects.
 
-#### Install additional dependencies
-
-```bash
-pip install ase>=3.22.0 huggingface_hub>=0.20.0
-# (or just: pip install -r requirements.txt)
-```
-
 #### Basic usage
 
 ```bash
-# Download & balance: 5 000 samples × 14 classes = 70 000 total (default)
+# Download & balance: 5,000 samples × 14 classes = 70,000 total (default)
 python data_loader.py
 
 # Larger subset for better generalisation
 python data_loader.py --n_per_class 10000 --output data/processed/simxrd_10k
-
-# Save as HDF5 instead of NumPy (faster random-access reads during training)
-python data_loader.py --n_per_class 5000 --format h5
-
-# Quick smoke-test: only pull 2 shards, 200 samples/class
-python data_loader.py --max_shards 2 --n_per_class 200
-
-# Offline / Kaggle: shards already downloaded to a local folder
-python data_loader.py --no_download --db_dir /kaggle/input/simxrd-shards
 ```
 
-#### CLI reference
-
-| Argument | Default | Description |
-|---|---|---|
-| `--n_per_class` | 5000 | Samples to collect per Bravais class |
-| `--output` | `data/processed/simxrd_balanced` | Output path (no extension) |
-| `--format` | `npz` | `npz` (NumPy compressed) or `h5` (HDF5) |
-| `--db_dir` | `data/simxrd_shards` | Local cache for downloaded .db shards |
-| `--max_shards` | -1 (all) | Limit shard downloads — useful for quick tests |
-| `--no_download` | False | Use already-downloaded shards, skip network |
-| `--seed` | 42 | Random seed for reproducibility |
-
-#### Output file (same schema as `data_generator.py`)
-
-- `X`: float32 `(N, 1024)` — PXRD patterns, Q-space, normalised \[0, 1\]
-- `y`: int32 `(N,)` — Bravais label 0–13
-- `class_names`: 14 Bravais symbols (`aP`, `mP`, … `cF`)
-- `Q_axis`: the 1024-bin Q-axis shared with `data_generator.py`
-
-#### How SimXRD-4M patterns are converted
-
-SimXRD-4M stores patterns in **d–I format** (lattice-plane spacing vs.
-intensity). `data_loader.py` converts these to the same Q-space grid used
-by `data_generator.py`:
-
-```
-Q = 2π / d   [Å⁻¹]
-```
-
-Peaks are then binned onto the shared 1024-point Q-axis spanning
-\[0.7, 6.0\] Å⁻¹, and normalised to \[0, 1\]. No additional broadening
-or noise is applied — SimXRD-4M already simulates 33 physical conditions
-(grain size, stress, thermal vibrations, instrumental zero-shift, etc.).
+> ⚠️ **Kaggle Disk Warning**: The full SimXRD-4M training dataset is very large (>74GB per part). If executing in constrained environments like Kaggle (~20GB limit), it is strongly recommended to use step 2a (`data_generator.py --numpy`) instead. 
 
 
 ### 3. Train the model
 
 ```bash
 # Default: 50 epochs, batch=256, Adam lr=1e-3
-python src/train.py
-
-# On a GPU (Kaggle T4 / Colab):
-python src/train.py --epochs 80 --batch 512
-
-# Lightweight run on CPU:
-python src/train.py --model small --epochs 30 --batch 128
+python train.py
 ```
 
 Training produces:
@@ -269,14 +254,6 @@ Training produces:
 - `outputs/plots/training_curves.png` — loss/accuracy vs. epoch
 - `outputs/plots/confusion_matrix.png` — per-class confusion heatmap
 - `outputs/deepbravais_final.keras` — full model for inference
-
-### 4. Resume from checkpoint (time-limited environments)
-
-```python
-from src.models import build_resnet1d
-model = build_resnet1d()
-model.load_weights("outputs/checkpoints/deepbravais_best_<timestamp>.weights.h5")
-```
 
 ---
 
@@ -289,7 +266,8 @@ model.load_weights("outputs/checkpoints/deepbravais_best_<timestamp>.weights.h5"
 | `--batch`    | 256     | Mini-batch size                        |
 | `--lr`       | 1e-3    | Initial Adam learning rate             |
 | `--dropout`  | 0.4     | Dropout in dense head                  |
-| `--model`    | full    | `full` (~18M params) or `small` (~2M)  |
+| `--model`    | full    | `full` (~18M params) or `small` (~1.6M)|
+| `--numpy`    | False   | If passed to data_generator.py, accelerates simulation by 20-50x using native matrix multiplication. |
 
 ---
 
@@ -312,22 +290,17 @@ model.load_weights("outputs/checkpoints/deepbravais_best_<timestamp>.weights.h5"
 
 3. Ong, S.P. et al. (2013). *Python Materials Genomics (pymatgen): A robust, open-source python library for materials analysis.*
    Computational Materials Science, 68, 314–319.
-   https://doi.org/10.1016/j.commatsci.2012.10.028
 
 4. Toby, B.H. & Von Dreele, R.B. (2013). *GSAS-II: the genesis of a modern open-source all purpose crystallography software package.*
-   J. Appl. Cryst., 46, 544–549.
-   https://doi.org/10.1107/S0021889813003531
 
 5. Cao, B., Dong, S., Liang, J., Luo, D., & Lookman, T. (2024).
    *SimXRD-4M: Big Simulated X-ray Diffraction Data Accelerates the Crystalline Symmetry Classification.*
    ICLR 2025.
    https://arxiv.org/abs/2406.15469
-   Dataset: https://huggingface.co/datasets/caobin/SimXRD
+   Original Dataset repository: https://huggingface.co/AI4Spectro
    Code: https://github.com/Bin-Cao/SimXRD
 
 6. Larsen, A.H. et al. (2017). *The Atomic Simulation Environment — A Python library for working with atoms.*
-   J. Phys.: Condens. Matter, 29, 273002.
-   https://doi.org/10.1088/1361-648X/aa680e
 
 7. Andrejevic, N., Du, M., Sharma, H., Horwath, J.P., Luo, A., Yin, X., Prince, M., Toby, B.H., & Cherukara, M.J. (2026).
    *AlphaDiffract: Automated Crystallographic Analysis of Powder X-ray Diffraction Data.*
