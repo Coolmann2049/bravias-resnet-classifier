@@ -29,7 +29,7 @@ from src.config import (
     BRAVAIS_LATTICES, CLASS_NAMES, N_CLASSES,
     WAVELENGTH_CU_KA,
 )
-from src.physics import simulate_pattern
+from src.physics import simulate_pattern, simulate_pattern_numpy
 from src.dataset import save_npz
 
 # Guard pymatgen import — give a clear error message if missing
@@ -47,7 +47,8 @@ except ImportError:
 def generate_dataset(n_samples:   int   = 50_000,
                      output_path: str   = "data/processed/dataset.npz",
                      wavelength:  float = WAVELENGTH_CU_KA,
-                     seed:        int   = 42):
+                     seed:        int   = 42,
+                     use_numpy:   bool  = False):
     """
     Generate ``n_samples`` physics-informed PXRD patterns distributed
     evenly across the 14 Bravais lattices, and save as a compressed .npz.
@@ -58,23 +59,28 @@ def generate_dataset(n_samples:   int   = 50_000,
     output_path  : output .npz path (extension added automatically)
     wavelength   : X-ray wavelength in Å (default Cu Kα = 1.5406 Å)
     seed         : reproducibility seed
+    use_numpy    : if True, use the fast numpy-only engine instead of pymatgen
+                   (no pymatgen install required, ~20-50× faster)
 
     Returns
     -------
     X : (n_samples, 1024) float32
     y : (n_samples,)      int32
     """
-    if not PYMATGEN_AVAILABLE:
-        raise RuntimeError(
-            "pymatgen is required. Install with:\n"
-            "    pip install pymatgen"
-        )
+    if use_numpy:
+        print("[data_generator] Backend: NUMPY (no pymatgen)")
+        calculator = None
+    else:
+        if not PYMATGEN_AVAILABLE:
+            raise RuntimeError(
+                "pymatgen is required for the default backend.\n"
+                "Install with:  pip install pymatgen\n"
+                "Or use the numpy backend:  --numpy"
+            )
+        print("[data_generator] Backend: PYMATGEN")
+        calculator = XRDCalculator(wavelength=wavelength)
 
-    np.random.seed(seed)
-    random.seed(seed)
-
-    calculator   = XRDCalculator(wavelength=wavelength)
-    rng          = np.random.default_rng(seed)   # shared across all calls
+    rng          = np.random.default_rng(seed)
     samples_each = n_samples // N_CLASSES
     remainder    = n_samples  % N_CLASSES
 
@@ -87,7 +93,10 @@ def generate_dataset(n_samples:   int   = 50_000,
     for bl in tqdm(BRAVAIS_LATTICES, desc="Bravais class"):
         n = samples_each + (1 if bl["id"] < remainder else 0)
         for _ in range(n):
-            pattern = simulate_pattern(bl, calculator, rng)
+            if use_numpy:
+                pattern = simulate_pattern_numpy(bl, rng)
+            else:
+                pattern = simulate_pattern(bl, calculator, rng)
             X_list.append(pattern)
             y_list.append(bl["id"])
 
@@ -130,6 +139,9 @@ if __name__ == "__main__":
                         help="X-ray wavelength in Å (default: Cu Kα 1.5406)")
     parser.add_argument("--seed",      type=int,   default=42,
                         help="Global random seed")
+    parser.add_argument("--numpy",     action="store_true",
+                        help="Use the fast numpy-only backend (no pymatgen needed). "
+                             "~20-50x faster than pymatgen. Recommended for Kaggle.")
 
     args = parser.parse_args()
     generate_dataset(
@@ -137,4 +149,5 @@ if __name__ == "__main__":
         output_path = args.output,
         wavelength  = args.wavelength,
         seed        = args.seed,
+        use_numpy   = args.numpy,
     )
