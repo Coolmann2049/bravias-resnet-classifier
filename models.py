@@ -39,6 +39,7 @@ Design Rationale
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras import regularizers
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -151,21 +152,21 @@ def build_resnet1d(input_length: int = N_BINS,
 
     # ── Stage 2: 128 filters, stride-2 downsampling ───────────────────────
     x = residual_block(x, filters=128, kernel_size=5,
-                       stride=2, dropout_rate=0.1)
+                       stride=2, dropout_rate=0.15)
     x = residual_block(x, filters=128, kernel_size=5,
                        stride=1, dropout_rate=0.0)
     # shape: (batch, 256, 128)
 
     # ── Stage 3: 256 filters, stride-2 downsampling ───────────────────────
     x = residual_block(x, filters=256, kernel_size=5,
-                       stride=2, dropout_rate=0.1)
+                       stride=2, dropout_rate=0.15)
     x = residual_block(x, filters=256, kernel_size=5,
                        stride=1, dropout_rate=0.0)
     # shape: (batch, 128, 256)
 
     # ── Stage 4: 512 filters, stride-2 downsampling ───────────────────────
     x = residual_block(x, filters=512, kernel_size=3,
-                       stride=2, dropout_rate=0.1)
+                       stride=2, dropout_rate=0.15)
     x = residual_block(x, filters=512, kernel_size=3,
                        stride=1, dropout_rate=0.0)
     # shape: (batch, 64, 512)
@@ -181,12 +182,18 @@ def build_resnet1d(input_length: int = N_BINS,
     x = layers.Flatten(name="flatten")(x)
     # shape: (batch, 64 * 512) = (batch, 32768)
 
-    x = layers.Dense(512, use_bias=False, name="fc1")(x)
+    # L2 regularisation on dense layers to combat overfitting from the
+    # large Flatten output (32,768 features → 16.8M weights in fc1 alone).
+    _l2 = regularizers.l2(1e-4)
+
+    x = layers.Dense(512, use_bias=False, kernel_regularizer=_l2,
+                     name="fc1")(x)
     x = layers.BatchNormalization(name="fc1_bn")(x)
     x = layers.Activation("relu", name="fc1_relu")(x)
     x = layers.Dropout(dropout_rate, name="fc1_drop")(x)
 
-    x = layers.Dense(128, use_bias=False, name="fc2")(x)
+    x = layers.Dense(128, use_bias=False, kernel_regularizer=_l2,
+                     name="fc2")(x)
     x = layers.BatchNormalization(name="fc2_bn")(x)
     x = layers.Activation("relu", name="fc2_relu")(x)
     x = layers.Dropout(dropout_rate, name="fc2_drop")(x)
