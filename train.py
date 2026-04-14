@@ -48,11 +48,11 @@ import tensorflow as tf
 from tensorflow import keras
 
 # ---------------------------------------------------------------------------
-# Make the src/ directory importable when running from the project root
+# Import model definitions (models.py lives at the project root)
 # ---------------------------------------------------------------------------
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.models import build_resnet1d, build_resnet1d_small, N_CLASSES, N_BINS
+from models import build_resnet1d, build_resnet1d_small, N_CLASSES, N_BINS
 
 # ---------------------------------------------------------------------------
 # Defaults (overridable via CLI)
