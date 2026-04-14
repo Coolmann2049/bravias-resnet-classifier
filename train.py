@@ -148,16 +148,35 @@ def split_data(X, y, val_ratio=VAL_RATIO, test_ratio=TEST_RATIO,
 # ---------------------------------------------------------------------------
 # Model compilation
 # ---------------------------------------------------------------------------
-def compile_model(model: keras.Model, learning_rate: float = DEFAULT_LR):
+def compile_model(model: keras.Model,
+                  learning_rate: float = DEFAULT_LR,
+                  warmup_epochs: int   = 5,
+                  total_epochs: int    = DEFAULT_EPOCHS,
+                  steps_per_epoch: int = 1):
     """
-    Compile with Adam optimiser, sparse categorical cross-entropy, and
-    standard accuracy metric.
+    Compile with Adam + cosine-decay LR schedule with linear warmup.
+
+    Warmup prevents the early val-loss spike caused by a high LR on an
+    un-trained network. Cosine decay smoothly anneals the LR to near-zero
+    over the remaining epochs.
     """
+    warmup_steps = warmup_epochs * steps_per_epoch
+    total_steps  = total_epochs  * steps_per_epoch
+
+    # CosineDecay with linear warmup (available in Keras / TF >= 2.11)
+    lr_schedule = keras.optimizers.schedules.CosineDecay(
+        initial_learning_rate = learning_rate,
+        decay_steps           = max(total_steps - warmup_steps, 1),
+        alpha                 = 1e-6,            # minimum LR at end of decay
+        warmup_target         = learning_rate,
+        warmup_steps          = warmup_steps,
+    )
+
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=learning_rate,
-                                        clipnorm=1.0),
-        loss=keras.losses.SparseCategoricalCrossentropy(),
-        metrics=["accuracy"],
+        optimizer = keras.optimizers.Adam(learning_rate=lr_schedule,
+                                          clipnorm=1.0),
+        loss      = keras.losses.SparseCategoricalCrossentropy(),
+        metrics   = ["accuracy"],
     )
     return model
 
@@ -165,14 +184,14 @@ def compile_model(model: keras.Model, learning_rate: float = DEFAULT_LR):
 # ---------------------------------------------------------------------------
 # Callbacks
 # ---------------------------------------------------------------------------
-def build_callbacks(ckpt_dir: str, patience_es: int = 10,
-                    patience_rlr: int = 5) -> list:
+def build_callbacks(ckpt_dir: str, patience_es: int = 15,
+                    patience_rlr: int = 7) -> list:
     """
     Returns a list of Keras callbacks:
-      • ModelCheckpoint  — saves best model weights by val_accuracy
-      • EarlyStopping    — stops when val_accuracy has not improved
-      • ReduceLROnPlateau — halves LR when val_loss plateaus
-      • TensorBoard      — optional, writes to outputs/logs/
+      • ModelCheckpoint   — saves best model weights by val_accuracy
+      • EarlyStopping     — patience=15 (more room for larger datasets)
+      • ReduceLROnPlateau — halves LR when val_loss plateaus for 7 epochs
+      • TensorBoard       — optional, writes to outputs/logs/
     """
     os.makedirs(ckpt_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -183,7 +202,7 @@ def build_callbacks(ckpt_dir: str, patience_es: int = 10,
         monitor="val_accuracy",
         mode="max",
         save_best_only=True,
-        save_weights_only=True,   # smaller file; load with model.load_weights()
+        save_weights_only=True,
         verbose=1,
     )
 
@@ -199,12 +218,11 @@ def build_callbacks(ckpt_dir: str, patience_es: int = 10,
         monitor="val_loss",
         factor=0.5,
         patience=patience_rlr,
-        min_lr=1e-6,
+        min_lr=1e-7,
         verbose=1,
     )
 
-    # Optional TensorBoard logging
-    log_dir = os.path.join("outputs", "logs", timestamp)
+    log_dir   = os.path.join("outputs", "logs", timestamp)
     tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir,
                                               histogram_freq=0)
 
@@ -320,7 +338,11 @@ def train(data_path: str     = DEFAULT_DATA_PATH,
     else:
         model = build_resnet1d(dropout_rate=dropout)
 
-    model = compile_model(model, learning_rate=learning_rate)
+    model = compile_model(model,
+                          learning_rate  = learning_rate,
+                          warmup_epochs  = 5,
+                          total_epochs   = epochs,
+                          steps_per_epoch= max(len(X_train) // batch_size, 1))
     model.summary(line_length=100)
     print(f"[DeepBravais] Total parameters: {model.count_params():,}")
 

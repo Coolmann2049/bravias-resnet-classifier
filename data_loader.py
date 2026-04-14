@@ -18,8 +18,22 @@ References
 - Cao, B. et al. (2024). SimXRD-4M: Big Simulated X-ray Diffraction Data
   Accelerates the Crystalline Symmetry Classification. ICLR 2025.
   https://arxiv.org/abs/2406.15469
-- Dataset repository: https://github.com/Bin-Cao/SimXRD
-- Hugging Face mirror: https://huggingface.co/datasets/caobin/SimXRD
+- Dataset organisation (Hugging Face): https://huggingface.co/AI4Spectro
+  - Training Part 1 : AI4Spectro/ILtrainV1_P1  (74.1 GB, 5 split-gz parts)
+  - Training Part 2 : AI4Spectro/ILtrainV1_P2
+  - Validation      : AI4Spectro/ILvalV1
+  - Test            : AI4Spectro/ILtestV1
+- Original GitHub   : https://github.com/Bin-Cao/SimXRD
+- NOTE: The old caobin/SimXRD Hugging Face URL is now 404. Use AI4Spectro.
+
+⚠️  Kaggle disk warning
+-----------------------
+Each training part is ~74 GB compressed. Kaggle notebooks only have ~20 GB
+disk space, so full download is NOT possible on Kaggle.
+
+For Kaggle, use data_generator.py (pymatgen) with --n_samples 500000 instead.
+For a server with 200+ GB disk, download ILtrainV1_P1 and ILtrainV1_P2,
+combine the 5 split-gz parts, gunzip, then point --db_dir at the .db file.
 
 Setup
 -----
@@ -301,8 +315,16 @@ def preprocess_pattern(
 # SECTION 4  —  Hugging Face Download Helpers
 # ===========================================================================
 
-HF_REPO_ID   = "caobin/SimXRD"
-HF_REPO_TYPE = "dataset"
+# ---------------------------------------------------------------------------
+# Hugging Face dataset references (updated from caobin/SimXRD which is now 404)
+# ---------------------------------------------------------------------------
+# NOTE: The new dataset is split into massive .gz archives (~74 GB each).
+# For Kaggle (20 GB disk limit), use --no_download with pre-downloaded shards,
+# OR use data_generator.py with --n_samples 500000 instead.
+
+HF_REPO_ID      = "AI4Spectro/ILtrainV1_P1"   # Part 1 of training data
+HF_REPO_ID_P2   = "AI4Spectro/ILtrainV1_P2"   # Part 2 of training data
+HF_REPO_TYPE    = "dataset"
 
 
 def _list_db_files(repo_id: str = HF_REPO_ID) -> List[str]:
