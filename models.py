@@ -64,8 +64,9 @@ class StochasticDepth(layers.Layer):
         batch_size    = tf.shape(x)[0]
         keep_prob     = 1.0 - self.drop_rate
         random_tensor = tf.random.uniform((batch_size, 1, 1)) + keep_prob
-        random_tensor = tf.floor(random_tensor)          # Bernoulli sample
-        return (x / keep_prob) * random_tensor
+        random_tensor = tf.floor(random_tensor)                    # Bernoulli sample
+        random_tensor = tf.cast(random_tensor, dtype=x.dtype)     # match float16/float32
+        return (x / tf.cast(keep_prob, dtype=x.dtype)) * random_tensor
 
     def get_config(self):
         cfg = super().get_config()
