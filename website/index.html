@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepBravais — PXRD Bravais Lattice Classifier</title>
+  <meta name="description"
+    content="DeepBravais: A 1D Residual Network achieving 96.78% accuracy for classifying powder X-ray diffraction patterns into the 14 Bravais lattice types." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Titillium+Web:wght@300;400;600&family=Josefin+Sans:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #ffffff;
+      --bg2: #f7faf7;
+      --bg3: #eef5ee;
+      --card: #ffffff;
+      --border: #c8dfc8;
+      --border2: #e0ede0;
+      --accent: #2a6e3f;
+      --accent2: #3a9455;
+      --accent-lt: #e8f5ec;
+      --green-dk: #1a4d2c;
+      --text: #1a2b1a;
+      --muted: #5a7560;
+      --muted2: #8aab90;
+      --red: #b94040;
+      --orange: #c47a1a;
+      --radius: 8px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 300;
+      line-height: 1.7;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: 'Noto Serif', serif;
+      font-weight: 700;
+    }
+
+    h4,
+    h5,
+    .section-tag,
+    .card-title,
+    nav,
+    .stat-cell .lbl,
+    .tl-time,
+    .tl-title,
+    .spec-badge,
+    th,
+    .nav-links a,
+    .nav-badge,
+    .btn-primary,
+    .btn-ghost {
+      font-family: 'Titillium Web', sans-serif;
+    }
+
+    /* ── NAV ──────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: #ffffff;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2.5rem;
+      height: 62px;
+    }
+
+    .nav-logo {
+      font-family: 'Noto Serif', serif;
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    .nav-badge {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.4rem 1.1rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .nav-badge:hover {
+      background: var(--accent2);
+    }
+
+    /* ── HERO ─────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 7rem 2rem 4rem;
+      background: linear-gradient(175deg, var(--bg2) 0%, #ffffff 60%);
+      border-bottom: 2px solid var(--border);
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--accent-lt);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 0.35rem 1rem;
+      font-family: 'Titillium Web', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 1.75rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.6rem);
+      font-weight: 700;
+      line-height: 1.15;
+      max-width: 820px;
+      color: var(--green-dk);
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 640px;
+      margin: 1.25rem auto 2.25rem;
+      font-weight: 300;
+    }
+
+    .hero-ctas {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.7rem 1.7rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      border: 2px solid var(--accent);
+      transition: background 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: var(--green-dk);
+      border-color: var(--green-dk);
+    }
+
+    .btn-ghost {
+      background: #fff;
+      border: 2px solid var(--border);
+      color: var(--accent);
+      padding: 0.7rem 1.7rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--accent);
+    }
+
+    /* ── STAT STRIP ───────────────────────────── */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 2px solid var(--border);
+    }
+
+    .stat-cell {
+      background: var(--bg2);
+      padding: 2rem;
+      text-align: center;
+      border-right: 1px solid var(--border2);
+    }
+
+    .stat-cell:last-child {
+      border-right: none;
+    }
+
+    .stat-cell .val {
+      font-family: 'Noto Serif', serif;
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-cell .lbl {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-top: 0.2rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── SECTION ──────────────────────────────── */
+    section {
+      padding: 5rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-rule {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .section-rule::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .section-tag {
+      display: inline-block;
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      font-size: 1.9rem;
+      color: var(--green-dk);
+      margin-bottom: 0.65rem;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      color: var(--green-dk);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-desc {
+      color: var(--muted);
+      max-width: 640px;
+      margin-bottom: 2.25rem;
+      font-size: 0.97rem;
+    }
+
+    /* ── DIVIDER ──────────────────────────────── */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border2);
+      margin: 0;
+    }
+
+    /* ── CARD ─────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.6rem;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+      color: var(--green-dk);
+    }
+
+    .card-sub {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    /* ── GRIDS ────────────────────────────────── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* ── PIPELINE ─────────────────────────────── */
+    .pipeline {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .pipe-step {
+      flex: 1;
+      min-width: 150px;
+      background: #fff;
+      border-right: 1px solid var(--border2);
+      padding: 1.5rem 1rem;
+      position: relative;
+      text-align: center;
+    }
+
+    .pipe-step:last-child {
+      border-right: none;
+    }
+
+    .pipe-step:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      right: -14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent2);
+      font-size: 1.1rem;
+      z-index: 1;
+      background: #fff;
+      padding: 0 3px;
+    }
+
+    .pipe-icon {
+      font-size: 1.8rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .pipe-step h4 {
+      font-size: 0.87rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      color: var(--green-dk);
+    }
+
+    .pipe-step p {
+      color: var(--muted);
+      font-size: 0.77rem;
+    }
+
+    /* ── PLOT PLACEHOLDER ──────────────────────── */
+    .plot-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .plot-placeholder {
+      background: var(--bg2);
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+      border: 2px dashed var(--border);
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .plot-placeholder .ph-icon {
+      font-size: 2.2rem;
+    }
+
+    .plot-placeholder .ph-title {
+      font-family: 'Titillium Web', sans-serif;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--green-dk);
+    }
+
+    .plot-placeholder .ph-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--accent2);
+      background: var(--accent-lt);
+      padding: 0.3rem 0.75rem;
+      border-radius: 4px;
+    }
+
+    .plot-placeholder .ph-hint {
+      color: var(--muted);
+      font-size: 0.82rem;
+      max-width: 360px;
+    }
+
+    .plot-img {
+      width: 100%;
+      display: block;
+    }
+
+    .plot-caption {
+      padding: 0.7rem 1rem;
+      background: var(--bg2);
+      font-size: 0.82rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border2);
+    }
+
+    /* ── RESULTS TABLE ────────────────────────── */
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .results-table th {
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Titillium Web', sans-serif;
+      font-weight: 600;
+      padding: 0.7rem 1rem;
+      text-align: left;
+    }
+
+    .results-table td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .results-table tr:hover td {
+      background: var(--accent-lt);
+    }
+
+    .results-table .perfect {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .results-table .good {
+      color: #2a7a50;
+    }
+
+    .results-table .fair {
+      color: var(--orange);
+    }
+
+    .results-table .total {
+      background: var(--bg3);
+      font-family: 'Titillium Web', sans-serif;
+      font-weight: 600;
+    }
+
+    /* ── ARCHITECTURE ─────────────────────────── */
+    .arch-block {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 1rem 1.5rem;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .arch-block .ab-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      min-width: 230px;
+    }
+
+    .arch-block .ab-desc {
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .arch-block .ab-shape {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      color: var(--muted);
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+    }
+
+    .arch-arrow {
+      text-align: center;
+      color: var(--muted2);
+      font-size: 1rem;
+      margin: 0.1rem 0;
+    }
+
+    /* ── TIMELINE ─────────────────────────────── */
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent-lt));
+    }
+
+    .tl-item {
+      position: relative;
+      margin-bottom: 2rem;
+    }
+
+    .tl-dot {
+      position: absolute;
+      left: -2rem;
+      top: 4px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid var(--bg);
+    }
+
+    .tl-time {
+      font-size: 0.76rem;
+      color: var(--accent2);
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+      letter-spacing: 0.04em;
+    }
+
+    .tl-title {
+      font-family: 'Titillium Web', sans-serif;
+      font-weight: 600;
+      font-size: 0.97rem;
+      color: var(--green-dk);
+      margin-bottom: 0.2rem;
+    }
+
+    .tl-desc {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    /* ── SPEC BADGE ───────────────────────────── */
+    .spec-row {
+      display: flex;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.1rem;
+    }
+
+    .spec-badge {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.81rem;
+    }
+
+    .spec-badge strong {
+      color: var(--green-dk);
+      font-weight: 600;
+    }
+
+    .spec-badge span {
+      color: var(--muted);
+    }
+
+    /* ── F1 CHART ─────────────────────────────── */
+    .chart-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+
+    .chart-wrap canvas {
+      max-height: 320px;
+    }
+
+    /* ── CITATIONS ────────────────────────────── */
+    .citations {
+      background: var(--bg2);
+      border-top: 2px solid var(--border);
+    }
+
+    .citations-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+    }
+
+    .cite-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+
+    .cite-list li {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+      padding-bottom: 1.1rem;
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .cite-list li:last-child {
+      border-bottom: none;
+    }
+
+    .cite-num {
+      font-family: 'Noto Serif', serif;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 1.5rem;
+      padding-top: 0.05rem;
+    }
+
+    .cite-list a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .cite-list a:hover {
+      text-decoration: underline;
+    }
+
+    .cite-list strong {
+      color: var(--green-dk);
+      font-weight: 600;
+    }
+
+    /* ── FOOTER ───────────────────────────────── */
+    footer {
+      background: var(--green-dk);
+      border-top: 2px solid var(--accent);
+      padding: 2.5rem;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.86rem;
+    }
+
+    footer .footer-author {
+      font-family: 'Noto Serif', serif;
+      font-size: 1rem;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    footer a {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+      transition: color 0.2s;
+    }
+
+    footer a:hover {
+      color: #fff;
+    }
+
+    footer .footer-links {
+      display: flex;
+      gap: 1.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 0.75rem 0;
+    }
+
+    /* ── SECTION BG ALTERNATION ───────────────── */
+    .section-alt {
+      background: var(--bg2);
+      border-top: 1px solid var(--border2);
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .section-alt section {
+      max-width: 1100px;
+    }
+
+    /* ── RESPONSIVE ───────────────────────────── */
+    @media (max-width: 768px) {
+      .stat-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4 {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .pipeline {
+        flex-direction: column;
+        border-radius: var(--radius);
+      }
+
+      .pipe-step {
+        border-right: none;
+        border-bottom: 1px solid var(--border2);
+      }
+
+      .pipe-step:last-child {
+        border-bottom: none;
+      }
+
+      .pipe-step:not(:last-child)::after {
+        display: none;
+      }
+
+      .arch-block {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .arch-block .ab-shape {
+        margin-left: 0;
+      }
+    }
+
+    /* ── SCROLL ANIMATIONS ────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <span class="nav-logo">DeepBravais</span>
+    <ul class="nav-links">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#data">Dataset</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#training">Training</a></li>
+      <li><a href="#results">Results</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+    <a href="https://www.kaggle.com/code/coolmann2049/deepbravais-pxrd-classification" target="_blank"
+      class="nav-badge">📓 Kaggle Notebook</a>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-tag">🔬 Materials Science × Deep Learning</div>
+    <h1>Classifying Crystal Structures<br />from <em>Diffraction Patterns</em></h1>
+    <p class="hero-sub">DeepBravais is a physics-informed 1D residual network that classifies powder X-ray diffraction
+      (PXRD) patterns into all <strong>14 Bravais lattice types</strong> from first-principles simulations — no
+      experimental database required.</p>
+    <div class="hero-ctas">
+      <a href="https://drive.google.com/file/d/11ap4gaBPyd5HjaN1aH_g-tDWpwdeIc3P/view?usp=sharing" target="_blank"
+        class="btn-primary">⬇ Download Weights</a>
+      <a href="https://github.com/Coolmann2049/bravias-resnet-classifier" target="_blank" class="btn-ghost">GitHub
+        Repository</a>
+      <a href="https://www.kaggle.com/code/coolmann2049/deepbravais-pxrd-classification" target="_blank"
+        class="btn-ghost">View Notebook</a>
+    </div>
+  </div>
+
+  <!-- STAT STRIP -->
+  <div class="stat-strip">
+    <div class="stat-cell fade-in">
+      <div class="val">96.78%</div>
+      <div class="lbl">Test Accuracy</div>
+    </div>
+    <div class="stat-cell fade-in">
+      <div class="val">500 k</div>
+      <div class="lbl">Synthetic Patterns</div>
+    </div>
+    <div class="stat-cell fade-in">
+      <div class="val">1.6 M</div>
+      <div class="lbl">Model Parameters</div>
+    </div>
+    <div class="stat-cell fade-in">
+      <div class="val">14</div>
+      <div class="lbl">Bravais Classes</div>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <div class="fade-in">
+      <div class="section-rule"><span class="section-tag">Overview</span></div>
+      <h2>What is DeepBravais?</h2>
+      <p class="section-desc">A physics-informed deep learning pipeline that synthesises realistic X-ray diffraction
+        patterns from first principles, then trains a compact 1D ConvNeXt to distinguish all 14 crystal symmetry classes
+        — in Q-space, so scale invariance is preserved.</p>
+    </div>
+    <div class="pipeline fade-in">
+      <div class="pipe-step">
+        <div class="pipe-icon">🔩</div>
+        <h4>Lattice Sampling</h4>
+        <p>Random unit-cell parameters drawn per Bravais class from physically valid ranges</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon">📐</div>
+        <h4>d-Spacing Calc</h4>
+        <p>Closed-form IUCr formulae applied via vectorised NumPy — no pymatgen overhead</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon">〰️</div>
+        <h4>Pseudo-Voigt</h4>
+        <p>Scherrer broadening, mixed Lorentz–Gauss peak profiles, randomised FWHM</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon">📡</div>
+        <h4>Poisson Noise</h4>
+        <p>Photon-counting noise at 500–5 000 counts/bin to simulate real instruments</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🧠</div>
+        <h4>ConvNeXt-1D</h4>
+        <p>Depthwise-separable residual classifier trained end-to-end on synthetic patterns</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider" />
+
+  <!-- DATASET -->
+  <div class="section-alt">
+    <section id="data">
+      <div class="fade-in">
+        <div class="section-rule"><span class="section-tag">Dataset</span></div>
+        <h2>500 000 Synthetic Patterns in 118 Minutes</h2>
+        <p class="section-desc">Rather than downloading a multi-hundred-GB experimental database, all patterns are
+          generated entirely on CPU using a vectorised NumPy physics engine, achieving a 20–50× speedup over pymatgen.
+        </p>
+      </div>
+      <div class="grid-2 fade-in">
+        <div class="card">
+          <div class="card-title">⚡ NumPy Physics Engine</div>
+          <p class="card-sub" style="margin-bottom:1rem;">Bypasses pymatgen's Python-object overhead by pre-computing
+            (h,k,l) grids and running fully vectorised matrix multiplications.</p>
+          <div class="spec-row">
+            <div class="spec-badge"><strong>~4 200</strong> <span>patterns / min</span></div>
+            <div class="spec-badge"><strong>Pure CPU</strong> <span>no GPU needed</span></div>
+            <div class="spec-badge"><strong>1 hr 58 min</strong> <span>total runtime</span></div>
+          </div>
+          <pre
+            style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:0.85rem;font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--accent);overflow-x:auto;">python data_generator.py \
+  --n_samples 500000 \
+  --numpy</pre>
+        </div>
+        <div class="card">
+          <div class="card-title">📦 Dataset Specifications</div>
+          <p class="card-sub" style="margin-bottom:1rem;">Each pattern is a 1 024-point intensity array on a fixed
+            Q-axis spanning 0.7–6.0 Å⁻¹, normalised to [0, 1].</p>
+          <div class="spec-row">
+            <div class="spec-badge"><strong>500 000</strong> <span>total samples</span></div>
+            <div class="spec-badge"><strong>35 714</strong> <span>per class</span></div>
+            <div class="spec-badge"><strong>1 024</strong> <span>bins / pattern</span></div>
+            <div class="spec-badge"><strong>~1.4 GB</strong> <span>.npz on disk</span></div>
+          </div>
+          <div class="spec-row">
+            <div class="spec-badge"><strong>Q-space</strong> <span>0.7 – 6.0 Å⁻¹</span></div>
+            <div class="spec-badge"><strong>Cu Kα</strong> <span>λ = 1.5406 Å</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-4 fade-in" style="margin-top:1.25rem;">
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:0.5rem;">🔷</div>
+          <div class="card-title">Triclinic</div>
+          <div class="card-sub">aP — most general symmetry; no angular or length constraints</div>
+        </div>
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:0.5rem;">🔶</div>
+          <div class="card-title">Monoclinic</div>
+          <div class="card-sub">mP, mC — one 2-fold rotation axis; one mirror plane</div>
+        </div>
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:0.5rem;">🟦</div>
+          <div class="card-title">Orthorhombic</div>
+          <div class="card-sub">oP, oI, oF, oC — three mutually perpendicular 2-fold axes</div>
+        </div>
+        <div class="card">
+          <div style="font-size:1.5rem;margin-bottom:0.5rem;">🟩</div>
+          <div class="card-title">Cubic</div>
+          <div class="card-sub">cP, cI, cF — four 3-fold axes; highest possible symmetry</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture">
+    <div class="fade-in">
+      <div class="section-rule"><span class="section-tag">Architecture</span></div>
+      <h2>ConvNeXt-1D Small (~1.6 M parameters)</h2>
+      <p class="section-desc">Depthwise-separable convolutions with an inverted-bottleneck FFN and stochastic depth
+        regularisation — adapted from ConvNeXt-V1 to the 1-D signal domain and trained with mixed-precision FP16.</p>
+    </div>
+    <div class="fade-in">
+      <div class="arch-block">
+        <div class="ab-label">pxrd_input</div>
+        <div class="ab-desc">Raw pattern in Q-space, normalised [0, 1]</div>
+        <div class="ab-shape">(N, 1024, 1)</div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-block">
+        <div class="ab-label">stem_conv + stem_ln</div>
+        <div class="ab-desc">Conv1D kernel=7, stride=2 → LayerNorm — encodes local peak shapes</div>
+        <div class="ab-shape">(N, 512, 32)</div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-block">
+        <div class="ab-label">Stage 1 — 2× ConvNeXt Block</div>
+        <div class="ab-desc">DepthwiseConv k=7 → LN → MLP(128) → MLP(32) + skip connection</div>
+        <div class="ab-shape">(N, 512, 32)</div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-block">
+        <div class="ab-label">Stage 2 — 2× ConvNeXt Block</div>
+        <div class="ab-desc">Downsampled 2× via strided Conv1D projection; channels doubled</div>
+        <div class="ab-shape">(N, 256, 64)</div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-block">
+        <div class="ab-label">Stage 3 — 3× ConvNeXt Block</div>
+        <div class="ab-desc">Stochastic Depth regularisation activated; channels doubled</div>
+        <div class="ab-shape">(N, 128, 128)</div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-block">
+        <div class="ab-label">Stage 4 — 2× ConvNeXt Block</div>
+        <div class="ab-desc">Deepest stage; captures long-range systematic absence fingerprints</div>
+        <div class="ab-shape">(N, 64, 256)</div>
+      </div>
+      <div class="arch-arrow">↓</div>
+      <div class="arch-block">
+        <div class="ab-label">gap → head_ln → Dropout → predictions</div>
+        <div class="ab-desc">GlobalAveragePooling1D → LayerNorm → Dense(14, softmax)</div>
+        <div class="ab-shape">(N, 14)</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider" />
+
+  <!-- TRAINING -->
+  <div class="section-alt">
+    <section id="training">
+      <div class="fade-in">
+        <div class="section-rule"><span class="section-tag">Training Run</span></div>
+        <h2>20 Epochs on a Tesla P100</h2>
+        <p class="section-desc">End-to-end training from random initialisation to 96.78% test accuracy, completed in
+          approximately one hour using mixed-precision FP16 on a single Kaggle GPU.</p>
+      </div>
+
+      <div class="grid-2 fade-in">
+        <div>
+          <div class="timeline">
+            <div class="tl-item">
+              <div class="tl-dot"></div>
+              <div class="tl-time">T + 0:00 — Epoch 1</div>
+              <div class="tl-title">Model warm-up</div>
+              <div class="tl-desc">Train accuracy 30.1% → Val accuracy <strong>82.7%</strong>. XLA kernel fusion adds
+                ~218 s to the first epoch.</div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot"></div>
+              <div class="tl-time">T + 0:07 — Epochs 2–5</div>
+              <div class="tl-title">Rapid ascent</div>
+              <div class="tl-desc">Validation accuracy crosses 90% by epoch 3, reaches <strong>93.7%</strong> at epoch
+                5. Each epoch stabilises at ~104 s.</div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot"></div>
+              <div class="tl-time">T + 0:25 — Epoch 11</div>
+              <div class="tl-title">Plateau broken by CosineDecay</div>
+              <div class="tl-desc">Learning rate annealing drives a jump from 95.2% → <strong>95.97%</strong>. Confusion
+                matrix patterns begin to crystallise.</div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot"></div>
+              <div class="tl-time">T + 0:52 — Epoch 20</div>
+              <div class="tl-title">Final checkpoint saved</div>
+              <div class="tl-desc">Best val accuracy <strong>96.87%</strong>. Weights restored; model evaluated on the
+                75 000-sample test set.</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div class="card">
+            <div class="card-title">⚙️ Hyperparameters</div>
+            <div class="spec-row" style="margin-top:0.75rem;">
+              <div class="spec-badge"><strong>20</strong> <span>epochs</span></div>
+              <div class="spec-badge"><strong>256</strong> <span>batch size</span></div>
+              <div class="spec-badge"><strong>3e-4</strong> <span>initial LR</span></div>
+              <div class="spec-badge"><strong>0.5</strong> <span>dropout</span></div>
+              <div class="spec-badge"><strong>FP16</strong> <span>mixed precision</span></div>
+              <div class="spec-badge"><strong>CosineDecay</strong> <span>LR schedule</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🕐 Wall-clock Timings</div>
+            <div class="spec-row" style="margin-top:0.75rem;">
+              <div class="spec-badge"><strong>1 hr 58 min</strong> <span>data generation (CPU)</span></div>
+              <div class="spec-badge"><strong>1 hr 03 min</strong> <span>training (P100 GPU)</span></div>
+              <div class="spec-badge"><strong>~104 s</strong> <span>per epoch</span></div>
+              <div class="spec-badge"><strong>127 ms</strong> <span>per step</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Training Curves Placeholder -->
+      <div class="fade-in" style="margin-top:2.5rem;">
+        <h3 style="margin-bottom:1rem;">Training Curves</h3>
+        <div class="plot-wrap">
+
+          <img src="assets/plots/training_curves.png" class="plot-img" alt="Training Curves" />
+          <div class="plot-caption">
+            Loss &amp; Accuracy over 20 epochs — Train vs. Validation. Best val accuracy at Epoch 20:
+            <strong>96.87%</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- RESULTS -->
+  <section id="results">
+    <div class="fade-in">
+      <div class="section-rule"><span class="section-tag">Results</span></div>
+      <h2>96.78% on 75 000 Held-out Patterns</h2>
+      <p class="section-desc">Macro F1-score of 0.9676 across all 14 classes. Cubic lattices reach near-perfect
+        classification. The main source of confusion is between mP and mC, as expected from their similar
+        systematic-absence rules.</p>
+    </div>
+
+    <!-- Confusion Matrix Placeholder -->
+    <div class="fade-in" style="margin-bottom:2.5rem;">
+      <h3 style="margin-bottom:1rem;">Confusion Matrix</h3>
+      <div class="plot-wrap">
+        <!--
+        ════════════════════════════════════════════════════════════
+        📸  PLACE YOUR SCREENSHOT HERE
+        ════════════════════════════════════════════════════════════
+        1. Save confusion_matrix.png from the Kaggle output cell
+        2. Copy it to:   website/assets/plots/confusion_matrix.png
+        3. Replace the <div class="plot-placeholder"> block below
+           with this single line:
+           <img src="assets/plots/confusion_matrix.png" class="plot-img" alt="Confusion Matrix" />
+        ════════════════════════════════════════════════════════════
+      -->
+        <div class="plot-placeholder">
+          <div class="ph-icon">🗃️</div>
+          <div class="ph-title">14 × 14 Confusion Matrix</div>
+          <div class="ph-path">website/assets/plots/confusion_matrix.png</div>
+          <div class="ph-hint">Copy your Kaggle screenshot here, then swap this block with an &lt;img&gt; tag pointing
+            to the path above.</div>
+        </div>
+        <div class="plot-caption">
+          Confusion matrix on 75 000 test samples. Diagonal entries are nearly saturated; off-diagonal confusion is
+          concentrated between adjacent monoclinic classes (mP ↔ mC).
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-class F1 bar chart -->
+    <div class="fade-in">
+      <h3 style="margin-bottom:1rem;">Per-Class F1-Score</h3>
+      <div class="chart-wrap">
+        <canvas id="f1Chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Classification Report Table -->
+    <div class="fade-in" style="margin-top:2.5rem;">
+      <h3 style="margin-bottom:1rem;">Classification Report</h3>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Lattice System</th>
+              <th>Precision</th>
+              <th>Recall</th>
+              <th>F1-Score</th>
+              <th>Support</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>aP</td>
+              <td>Triclinic P</td>
+              <td class="fair">0.9448</td>
+              <td class="fair">0.9291</td>
+              <td class="fair">0.9369</td>
+              <td>5 358</td>
+            </tr>
+            <tr>
+              <td>mP</td>
+              <td>Monoclinic P</td>
+              <td class="fair">0.9404</td>
+              <td class="fair">0.8719</td>
+              <td class="fair">0.9049</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>mC</td>
+              <td>Monoclinic C</td>
+              <td class="fair">0.9525</td>
+              <td class="fair">0.9239</td>
+              <td class="fair">0.9379</td>
+              <td>5 358</td>
+            </tr>
+            <tr>
+              <td>oP</td>
+              <td>Orthorhombic P</td>
+              <td class="good">0.9476</td>
+              <td class="good">0.9558</td>
+              <td class="good">0.9517</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>oI</td>
+              <td>Orthorhombic I</td>
+              <td class="good">0.9925</td>
+              <td class="good">0.9634</td>
+              <td class="good">0.9777</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>oF</td>
+              <td>Orthorhombic F</td>
+              <td class="good">0.9928</td>
+              <td class="good">0.9731</td>
+              <td class="good">0.9828</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>oC</td>
+              <td>Orthorhombic C</td>
+              <td class="fair">0.9353</td>
+              <td class="good">0.9601</td>
+              <td class="good">0.9475</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>tP</td>
+              <td>Tetragonal P</td>
+              <td class="good">0.9549</td>
+              <td class="perfect">0.9951</td>
+              <td class="good">0.9746</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>tI</td>
+              <td>Tetragonal I</td>
+              <td class="good">0.9419</td>
+              <td class="good">0.9808</td>
+              <td class="good">0.9610</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>hR</td>
+              <td>Trigonal R</td>
+              <td class="perfect">0.9968</td>
+              <td class="perfect">0.9996</td>
+              <td class="perfect">0.9982</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>hP</td>
+              <td>Hexagonal P</td>
+              <td class="good">0.9679</td>
+              <td class="perfect">0.9976</td>
+              <td class="good">0.9825</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>cP</td>
+              <td>Cubic P</td>
+              <td class="perfect">1.0000</td>
+              <td class="perfect">1.0000</td>
+              <td class="perfect">1.0000</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>cI</td>
+              <td>Cubic I</td>
+              <td class="perfect">0.9976</td>
+              <td class="perfect">1.0000</td>
+              <td class="perfect">0.9988</td>
+              <td>5 357</td>
+            </tr>
+            <tr>
+              <td>cF</td>
+              <td>Cubic F</td>
+              <td class="perfect">0.9855</td>
+              <td class="perfect">0.9994</td>
+              <td class="perfect">0.9924</td>
+              <td>5 357</td>
+            </tr>
+            <tr class="total">
+              <td colspan="2">Macro Average</td>
+              <td>0.9679</td>
+              <td>0.9678</td>
+              <td>0.9676</td>
+              <td>75 000</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- CITATIONS -->
+  <div class="citations" id="references">
+    <div class="citations-inner">
+      <div class="section-rule" style="margin-bottom:1.75rem;"><span class="section-tag">References</span></div>
+      <h2 style="margin-bottom:1.5rem;">Literature &amp; Acknowledgements</h2>
+      <ol class="cite-list">
+        <li>
+          <span class="cite-num">1</span>
+          <span>He, K., Zhang, X., Ren, S., &amp; Sun, J. (2016). <strong>Identity Mappings in Deep Residual
+              Networks.</strong> <em>ECCV 2016.</em>
+            <a href="https://arxiv.org/abs/1603.05027" target="_blank">arXiv:1603.05027</a></span>
+        </li>
+        <li>
+          <span class="cite-num">2</span>
+          <span>Warren, B. E. (1990). <strong>X-Ray Diffraction.</strong> <em>Dover Publications.</em></span>
+        </li>
+        <li>
+          <span class="cite-num">3</span>
+          <span>Ong, S. P. et al. (2013). <strong>Python Materials Genomics (pymatgen): A robust, open-source python
+              library for materials analysis.</strong> <em>Computational Materials Science, 68,</em> 314–319.
+            <a href="https://doi.org/10.1016/j.commatsci.2012.10.028"
+              target="_blank">doi:10.1016/j.commatsci.2012.10.028</a></span>
+        </li>
+        <li>
+          <span class="cite-num">4</span>
+          <span>Toby, B. H. &amp; Von Dreele, R. B. (2013). <strong>GSAS-II: the genesis of a modern open-source all
+              purpose crystallography software package.</strong> <em>J. Appl. Cryst., 46,</em> 544–549.
+            <a href="https://doi.org/10.1107/S0021889813003531" target="_blank">doi:10.1107/S0021889813003531</a></span>
+        </li>
+        <li>
+          <span class="cite-num">5</span>
+          <span>Cao, B., Dong, S., Liang, J., Luo, D., &amp; Lookman, T. (2024). <strong>SimXRD-4M: Big Simulated X-ray
+              Diffraction Data Accelerates the Crystalline Symmetry Classification.</strong> <em>ICLR 2025.</em>
+            <a href="https://arxiv.org/abs/2406.15469" target="_blank">arXiv:2406.15469</a> ·
+            <a href="https://huggingface.co/AI4Spectro" target="_blank">Dataset (HuggingFace)</a> ·
+            <a href="https://github.com/Bin-Cao/SimXRD" target="_blank">Code</a></span>
+        </li>
+        <li>
+          <span class="cite-num">6</span>
+          <span>Larsen, A. H. et al. (2017). <strong>The Atomic Simulation Environment — A Python library for working
+              with atoms.</strong> <em>J. Phys.: Condens. Matter, 29,</em> 273002.
+            <a href="https://doi.org/10.1088/1361-648X/aa680e" target="_blank">doi:10.1088/1361-648X/aa680e</a></span>
+        </li>
+        <li>
+          <span class="cite-num">7</span>
+          <span>Andrejevic, N. et al. (2026). <strong>AlphaDiffract: Automated Crystallographic Analysis of Powder X-ray
+              Diffraction Data.</strong>
+            <a href="https://arxiv.org/abs/2603.23367" target="_blank">arXiv:2603.23367</a></span>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <p class="footer-author">Made by <a href="https://github.com/Coolmann2049" target="_blank">Yashdeep Jha</a></p>
+    <div class="footer-links">
+      <a href="https://github.com/Coolmann2049/bravias-resnet-classifier" target="_blank">GitHub Repository</a>
+      <a href="https://www.kaggle.com/code/coolmann2049/deepbravais-pxrd-classification" target="_blank">Kaggle
+        Notebook</a>
+      <a href="https://drive.google.com/file/d/11ap4gaBPyd5HjaN1aH_g-tDWpwdeIc3P/view?usp=sharing"
+        target="_blank">Download Weights</a>
+    </div>
+    <p>MIT License · DeepBravais · 2026 · Built with TensorFlow / Keras · NumPy · pymatgen</p>
+  </footer>
+
+  <script>
+    // Scroll-reveal
+    const observer = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+      { threshold: 0.08 }
+    );
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+    // Per-class F1 bar chart
+    const labels = ['aP', 'mP', 'mC', 'oP', 'oI', 'oF', 'oC', 'tP', 'tI', 'hR', 'hP', 'cP', 'cI', 'cF'];
+    const f1 = [0.9369, 0.9049, 0.9379, 0.9517, 0.9777, 0.9828, 0.9475, 0.9746, 0.9610, 0.9982, 0.9825, 1.0000, 0.9988, 0.9924];
+    const colors = f1.map(v =>
+      v >= 0.99 ? '#2a6e3f' :
+        v >= 0.97 ? '#3a9455' :
+          v >= 0.95 ? '#67b585' :
+            '#c47a1a'
+    );
+
+    new Chart(document.getElementById('f1Chart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'F1-Score',
+          data: f1,
+          backgroundColor: colors,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` F1: ${ctx.raw.toFixed(4)}` } }
+        },
+        scales: {
+          y: {
+            min: 0.88, max: 1.01,
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            ticks: { color: '#5a7560', callback: v => v.toFixed(2), font: { family: 'Josefin Sans' } }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#2a6e3f', font: { family: 'JetBrains Mono', size: 11 } }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>
