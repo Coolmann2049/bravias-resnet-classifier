@@ -5,6 +5,9 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![TensorFlow 2.12+](https://img.shields.io/badge/tensorflow-2.12+-orange.svg)](https://www.tensorflow.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Live Site](https://img.shields.io/badge/🌐%20Live%20Site-deepbravais.yashdeep--jha.site-2a6e3f?style=flat)](https://deepbravais.yashdeep-jha.site/)
+
+> 🌐 **[deepbravais.yashdeep-jha.site](https://deepbravais.yashdeep-jha.site/)** — Interactive results, architecture walkthrough, and training report
 
 ---
 
