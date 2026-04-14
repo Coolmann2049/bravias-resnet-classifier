@@ -81,8 +81,6 @@ def build_callbacks(ckpt_dir:     str = "outputs/checkpoints",
     ModelCheckpoint  — saves best model weights (by val_accuracy)
     EarlyStopping    — stops when val_accuracy has not improved for
                        ``patience_es`` epochs; restores best weights
-    ReduceLROnPlateau — halves LR if val_loss stalls for ``patience_rlr``
-                        epochs (works alongside cosine schedule as a fallback)
     TensorBoard      — writes logs to outputs/logs/<timestamp>/
 
     Parameters
@@ -118,17 +116,9 @@ def build_callbacks(ckpt_dir:     str = "outputs/checkpoints",
         verbose              = 1,
     )
 
-    reduce_lr = keras.callbacks.ReduceLROnPlateau(
-        monitor  = "val_loss",
-        factor   = 0.5,
-        patience = patience_rlr,
-        min_lr   = 1e-7,
-        verbose  = 1,
-    )
-
     log_dir    = os.path.join("outputs", "logs", timestamp)
     tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir,
                                               histogram_freq=0)
 
     print(f"[trainer] Checkpoint will be saved to: {ckpt_path}")
-    return [checkpoint, early_stop, reduce_lr, tensorboard], ckpt_path
+    return [checkpoint, early_stop, tensorboard], ckpt_path
