@@ -314,4 +314,4 @@ Training produces:
 
 ## License
 
-MIT © 2024 DeepBravais Contributors
+MIT © 2026 DeepBravais Contributors
